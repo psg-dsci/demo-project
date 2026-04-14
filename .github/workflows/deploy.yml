@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  APP_DIR: /home/ec2-user/app   # Change this if using ubuntu → /home/ubuntu/app
+  APP_DIR: /home/ec2-user/app   # Change if ubuntu → /home/ubuntu/app
 
 jobs:
   # ─────────────────────────────────────────
@@ -27,14 +27,21 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (safe)
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "Using npm ci"
+            npm ci
+          else
+            echo "No lock file → using npm install"
+            npm install
+          fi
 
       - name: Run tests
         run: npm test
 
   # ─────────────────────────────────────────
-  # JOB 2: Deploy to EC2 (only on main push)
+  # JOB 2: Deploy to EC2
   # ─────────────────────────────────────────
   deploy:
     name: 🚀 Deploy to EC2
@@ -56,34 +63,41 @@ jobs:
           script: |
             echo "📦 Starting deployment..."
 
-            # Go to app directory (create if not exists)
             mkdir -p ${{ env.APP_DIR }}
             cd ${{ env.APP_DIR }}
 
-            # Pull latest code
+            # Clone or pull
             if [ -d ".git" ]; then
               git pull origin main
             else
               git clone ${{ secrets.REPO_URL }} .
             fi
 
-            # Install production dependencies
-            npm ci --omit=dev
+            # Install dependencies safely
+            if [ -f package-lock.json ]; then
+              echo "Using npm ci"
+              npm ci --omit=dev
+            else
+              echo "No lock file → using npm install"
+              npm install --omit=dev
+            fi
 
-            # Set environment variables
             export NODE_ENV=production
             export APP_VERSION=${{ github.sha }}
             export PORT=3000
 
-            # Restart app with PM2
+            # Ensure logs dir exists
+            mkdir -p logs
+
+            # PM2 restart/start
             pm2 describe app > /dev/null 2>&1
             if [ $? -eq 0 ]; then
               pm2 restart app --update-env
             else
               pm2 start src/app.js --name app \
                 --env production \
-                -e ${{ env.APP_DIR }}/logs/error.log \
-                -o ${{ env.APP_DIR }}/logs/out.log
+                -e logs/error.log \
+                -o logs/out.log
             fi
 
             pm2 save
@@ -91,10 +105,8 @@ jobs:
 
       - name: Notify on success
         if: success()
-        run: |
-          echo "🎉 Deployed commit ${{ github.sha }} to EC2 successfully!"
+        run: echo "🎉 Deployed commit ${{ github.sha }} successfully!"
 
       - name: Notify on failure
         if: failure()
-        run: |
-          echo "❌ Deployment failed for commit ${{ github.sha }}"
+        run: echo "❌ Deployment failed!"
