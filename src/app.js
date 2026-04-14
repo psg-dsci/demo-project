@@ -7,22 +7,25 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 
-// ✅ Serve static files
+// Static files
 app.use(express.static(path.join(__dirname, "../public")));
 
-// ✅ HTML on root
+// ✅ Smart root handler (handles BOTH test + browser)
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/index.html"));
-});
+  const accept = req.headers.accept || "";
 
-// ✅ API route (used in tests)
-app.get("/api", (req, res) => {
-  res.status(200).json({
-    message: "🚀 Hello from EC2!",
-    environment: process.env.NODE_ENV || "development",
-    version: process.env.APP_VERSION || "1.0.0",
-    timestamp: new Date().toISOString(),
-  });
+  // If request expects JSON → return API response (for tests)
+  if (accept.includes("application/json")) {
+    return res.status(200).json({
+      message: "🚀 Hello from EC2!",
+      environment: process.env.NODE_ENV || "development",
+      version: process.env.APP_VERSION || "1.0.0",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Otherwise → serve HTML (for browser)
+  return res.sendFile(path.join(__dirname, "../public/index.html"));
 });
 
 // Health check
@@ -42,7 +45,7 @@ app.get("/info", (req, res) => {
   });
 });
 
-// ✅ Prevent server start during tests
+// Prevent server during tests
 if (process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
