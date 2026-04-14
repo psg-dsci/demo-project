@@ -1,90 +1,36 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Website</title>
+const express = require("express");
+const path = require("path");
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f4f4;
-        }
+app.use(express.json());
 
-        header {
-            background: #333;
-            color: white;
-            padding: 15px;
-            text-align: center;
-        }
+// Serve the dashboard webpage
+app.use(express.static(path.join(__dirname, "../public")));
 
-        nav {
-            background: #555;
-            padding: 10px;
-            text-align: center;
-        }
+app.get("/", (req, res) => {
+  res.json({
+    message: "🚀 Hello from EC2!",
+    environment: process.env.NODE_ENV || "development",
+    version: process.env.APP_VERSION || "1.0.0",
+    timestamp: new Date().toISOString(),
+  });
+});
 
-        nav a {
-            color: white;
-            margin: 0 15px;
-            text-decoration: none;
-        }
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
+});
 
-        nav a:hover {
-            text-decoration: underline;
-        }
+app.get("/info", (req, res) => {
+  res.json({
+    node: process.version,
+    platform: process.platform,
+    memory: process.memoryUsage(),
+  });
+});
 
-        .container {
-            padding: 20px;
-        }
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
-        .card {
-            background: white;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 8px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
-        }
-
-        footer {
-            text-align: center;
-            padding: 10px;
-            background: #333;
-            color: white;
-            margin-top: 20px;
-        }
-    </style>
-</head>
-
-<body>
-
-<header>
-    <h1>My Website</h1>
-    <p>Welcome to my page</p>
-</header>
-
-<nav>
-    <a href="#">Home</a>
-    <a href="#">About</a>
-    <a href="#">Contact</a>
-</nav>
-
-<div class="container">
-    <div class="card">
-        <h2>Section 1</h2>
-        <p>This is a sample section.</p>
-    </div>
-
-    <div class="card">
-        <h2>Section 2</h2>
-        <p>Another section with content.</p>
-    </div>
-</div>
-
-<footer>
-    <p>© 2026 My Website</p>
-</footer>
-
-</body>
-</html>
+module.exports = app;
