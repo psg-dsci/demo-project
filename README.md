@@ -2,7 +2,7 @@
 
 A Node.js Express app with a complete CI/CD pipeline that:
 - Runs tests on every push/PR
-- Auto-deploys to AWS EC2 on merge to `main`
+- Auto-deploys to AWS EC2 on merge to `main` --
 
 ---
 
