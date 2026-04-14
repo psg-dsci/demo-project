@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  APP_DIR: /home/ec2-user/app   # Change if ubuntu → /home/ubuntu/app
+  APP_DIR: ~/app   # ✅ safer than /home/ec2-user/app
 
 jobs:
   # ─────────────────────────────────────────
@@ -21,33 +21,28 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: ⚙️ Setup Node (NO CACHE = no lock file error)
+      - name: ⚙️ Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: 📦 Install dependencies (auto-detect)
+      - name: 📦 Install dependencies
         run: |
-          echo "Checking for lock file..."
-
           if [ -f package-lock.json ]; then
-            echo "✅ Found package-lock.json → using npm ci"
             npm ci
           elif [ -f yarn.lock ]; then
-            echo "✅ Found yarn.lock → using yarn"
             npm install -g yarn
             yarn install --frozen-lockfile
           else
-            echo "⚠️ No lock file → generating one"
             npm install
           fi
 
-      - name: 🧪 Run tests (safe)
+      - name: 🧪 Run tests
         run: |
           if npm run | grep -q "test"; then
             npm test
           else
-            echo "⚠️ No test script found → skipping"
+            echo "No tests found, skipping..."
           fi
 
   # ─────────────────────────────────────────
@@ -60,9 +55,6 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-
       - name: 🚀 Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -71,14 +63,20 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            set -e   # 🚨 fail fast
+            set -e
 
             echo "📦 Starting deployment..."
 
-            mkdir -p ${{ env.APP_DIR }}
-            cd ${{ env.APP_DIR }}
+            # ✅ Always use home safely
+            APP_DIR=~/app
 
-            # Clone or pull repo
+            mkdir -p $APP_DIR
+            cd $APP_DIR
+
+            # ✅ Fix permissions (IMPORTANT)
+            sudo chown -R $USER:$USER $APP_DIR
+
+            # Clone or pull
             if [ -d ".git" ]; then
               echo "🔄 Pulling latest code..."
               git pull origin main
@@ -88,44 +86,40 @@ jobs:
             fi
 
             # Install Node if missing
-            if ! command -v npm &> /dev/null; then
+            if ! command -v node > /dev/null; then
               echo "⚙️ Installing Node.js..."
               curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
               sudo yum install -y nodejs
             fi
 
             # Install PM2 if missing
-            if ! command -v pm2 &> /dev/null; then
+            if ! command -v pm2 > /dev/null; then
               echo "⚙️ Installing PM2..."
               sudo npm install -g pm2
             fi
 
-            # Install dependencies safely
+            # Install dependencies
             echo "📦 Installing dependencies..."
             if [ -f package-lock.json ]; then
               npm ci --omit=dev
-            elif [ -f yarn.lock ]; then
-              npm install -g yarn
-              yarn install --production
             else
               npm install --omit=dev
             fi
 
-            # Environment setup
+            # Env setup
             export NODE_ENV=production
             export APP_VERSION=${{ github.sha }}
             export PORT=3000
 
             mkdir -p logs
 
-            # Restart app safely
+            # Restart app
             echo "🔁 Restarting application..."
 
             if pm2 describe app > /dev/null 2>&1; then
               pm2 restart app --update-env
             else
               pm2 start src/app.js --name app \
-                --env production \
                 -e logs/error.log \
                 -o logs/out.log
             fi
