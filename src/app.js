@@ -7,8 +7,16 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 
-// ✅ Routes FIRST
+// ✅ Serve static files
+app.use(express.static(path.join(__dirname, "../public")));
+
+// ✅ HTML on root
 app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/index.html"));
+});
+
+// ✅ API route (used in tests)
+app.get("/api", (req, res) => {
   res.status(200).json({
     message: "🚀 Hello from EC2!",
     environment: process.env.NODE_ENV || "development",
@@ -17,6 +25,7 @@ app.get("/", (req, res) => {
   });
 });
 
+// Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
@@ -24,6 +33,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+// System info
 app.get("/info", (req, res) => {
   res.status(200).json({
     node: process.version,
@@ -32,10 +42,7 @@ app.get("/info", (req, res) => {
   });
 });
 
-// ✅ Static AFTER routes (IMPORTANT)
-app.use(express.static(path.join(__dirname, "../public")));
-
-// ✅ Prevent server during tests
+// ✅ Prevent server start during tests
 if (process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
